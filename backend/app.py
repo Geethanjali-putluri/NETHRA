@@ -124,6 +124,7 @@ def move_rover(path):
             distance_travelled += 1
             
 def rover_simulation_loop():
+    print("🚗 ROVER SIMULATION THREAD STARTED")
 
     global running
     global state
