@@ -67,6 +67,7 @@ distance_travelled = 0
 last_detections = []
 
 mission_start_time = None
+mission_thread = None
 
 
 # ==========================================
@@ -121,12 +122,36 @@ def move_rover(path):
             rover_position[1] = next_position[1]
 
             distance_travelled += 1
+            
+def rover_simulation_loop():
 
+    global running
+    global state
+    global emergency_stop
 
-# ==========================================
-# VISION + NAVIGATION LOOP
-# ==========================================
-# ==========================================
+    while running and not emergency_stop:
+
+        path = a_star(
+            tuple(rover_position),
+            GOAL
+        )
+
+        if not path:
+            state = "NO_SAFE_PATH"
+            running = False
+            break
+
+        state = "NAVIGATING"
+
+        move_rover(path)
+
+        if tuple(rover_position) == GOAL:
+            state = "MISSION_COMPLETE"
+            running = False
+            break
+
+        time.sleep(1)
+
 # VISION + NAVIGATION LOOP
 # ==========================================
 
@@ -342,6 +367,7 @@ def start_mission():
     global emergency_stop
     global state
     global mission_start_time
+    global mission_thread
 
     emergency_stop = False
     running = True
@@ -349,6 +375,15 @@ def start_mission():
     mission_start_time = time.time()
 
     state = "NAVIGATING"
+
+    if mission_thread is None or not mission_thread.is_alive():
+
+        mission_thread = threading.Thread(
+            target=rover_simulation_loop,
+            daemon=True
+        )
+
+        mission_thread.start()
 
     return jsonify({
         "success": True,
