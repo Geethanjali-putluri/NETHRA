@@ -126,6 +126,9 @@ def move_rover(path):
 # ==========================================
 # VISION + NAVIGATION LOOP
 # ==========================================
+# ==========================================
+# VISION + NAVIGATION LOOP
+# ==========================================
 
 def vision_loop():
 
@@ -140,89 +143,79 @@ def vision_loop():
 
     while True:
 
-        ret, frame = cap.read()
-
-        if not ret:
-            time.sleep(1)
-            continue
-
-        results = model(
-            frame,
-            verbose=False
-        )
-
-        height, width = frame.shape[:2]
-
-        detections = []
-
         rescue_found = False
         new_obstacle = False
-
+        detections = []
 
         # ==================================
-        # YOLO DETECTIONS
+        # TRY CAMERA
         # ==================================
 
-        for box in results[0].boxes:
+        ret, frame = cap.read()
 
-            class_id = int(box.cls[0])
-            class_name = model.names[class_id]
+        # Camera is optional for deployed simulation
+        if ret:
 
-            confidence = float(box.conf[0])
-
-            if confidence < 0.5:
-                continue
-
-
-            x1, y1, x2, y2 = map(
-                int,
-                box.xyxy[0]
+            results = model(
+                frame,
+                verbose=False
             )
 
-            center_x = (x1 + x2) // 2
+            height, width = frame.shape[:2]
 
+            # ==================================
+            # YOLO DETECTIONS
+            # ==================================
 
-            if center_x < width / 3:
-                position = "LEFT"
+            for box in results[0].boxes:
 
-            elif center_x < 2 * width / 3:
-                position = "CENTER"
+                class_id = int(box.cls[0])
+                class_name = model.names[class_id]
 
-            else:
-                position = "RIGHT"
+                confidence = float(box.conf[0])
 
+                if confidence < 0.5:
+                    continue
 
-            detection = {
-                "object": class_name,
-                "confidence": round(confidence, 2),
-                "position": position
-            }
-
-            detections.append(detection)
-
-
-            # Rescue target
-            if class_name == RESCUE_CLASS:
-
-                rescue_found = True
-
-
-            # Obstacle
-            elif class_name in OBSTACLE_CLASSES:
-
-                added = add_camera_obstacle(
-                    position
+                x1, y1, x2, y2 = map(
+                    int,
+                    box.xyxy[0]
                 )
 
-                if added:
+                center_x = (x1 + x2) // 2
 
-                    obstacles_detected += 1
-                    replans += 1
-                    new_obstacle = True
+                if center_x < width / 3:
+                    position = "LEFT"
 
+                elif center_x < 2 * width / 3:
+                    position = "CENTER"
+
+                else:
+                    position = "RIGHT"
+
+                detection = {
+                    "object": class_name,
+                    "confidence": round(confidence, 2),
+                    "position": position
+                }
+
+                detections.append(detection)
+
+                # Rescue target
+                if class_name == RESCUE_CLASS:
+                    rescue_found = True
+
+                # Obstacle
+                elif class_name in OBSTACLE_CLASSES:
+
+                    added = add_camera_obstacle(position)
+
+                    if added:
+                        obstacles_detected += 1
+                        replans += 1
+                        new_obstacle = True
 
         last_detections = detections
-
 
         # ==================================
         # MISSION LOGIC
@@ -232,12 +225,10 @@ def vision_loop():
 
             state = "EMERGENCY_STOP"
 
-
         elif rescue_found and running:
 
             state = "TARGET_DETECTED"
             running = False
-
 
         elif running:
 
@@ -258,13 +249,14 @@ def vision_loop():
                 else:
                     state = "NAVIGATING"
 
+                # Move simulated rover
                 move_rover(path)
 
+                # Check goal
                 if tuple(rover_position) == GOAL:
 
                     state = "MISSION_COMPLETE"
                     running = False
-
 
         time.sleep(1)
 
@@ -461,19 +453,22 @@ def telemetry():
 
     })
 
+# START BACKGROUND VISION / SIMULATION THREAD
+# ==========================================
+
+vision_thread = threading.Thread(
+    target=vision_loop,
+    daemon=True
+)
+
+vision_thread.start()
+
 
 # ==========================================
-# RUN
+# RUN LOCAL SERVER
 # ==========================================
 
 if __name__ == "__main__":
-
-    vision_thread = threading.Thread(
-        target=vision_loop,
-        daemon=True
-    )
-
-    vision_thread.start()
 
     print("====================================")
     print("🚀 NETHRA BACKEND")
@@ -481,6 +476,7 @@ if __name__ == "__main__":
     print("📱 Camera: IP Webcam")
     print("🤖 YOLO: ACTIVE")
     print("🧭 A*: ACTIVE")
+    print("🚗 Rover: SIMULATION")
     print("🌐 API: http://127.0.0.1:5000")
     print("====================================")
 
