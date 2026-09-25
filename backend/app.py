@@ -390,7 +390,41 @@ def start_mission():
         "success": True,
         "state": state
     })
+# ==========================================
+# RESET MISSION
+# ==========================================
 
+@app.route("/api/mission/reset", methods=["POST"])
+def reset_mission():
+
+    global rover_position
+    global running
+    global emergency_stop
+    global state
+    global distance_travelled
+    global replans
+    global obstacles_detected
+    global last_detections
+    global mission_start_time
+
+    rover_position = list(START)
+
+    running = False
+    emergency_stop = False
+
+    state = "IDLE"
+
+    distance_travelled = 0
+    replans = 0
+    obstacles_detected = 0
+    last_detections = []
+    mission_start_time = None
+
+    return jsonify({
+        "success": True,
+        "state": state,
+        "rover_position": rover_position
+    })
 
 # ==========================================
 # STOP
